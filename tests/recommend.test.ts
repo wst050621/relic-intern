@@ -1,0 +1,88 @@
+import { describe, expect, it } from "vitest";
+import { FILMS, timesFor } from "../shared/films";
+import { localParse, recommend, sanitizeConditions } from "../shared/recommend";
+import { handleRecommend } from "../server/recommendCore";
+
+const ids = new Set(FILMS.map((f) => f.id));
+const post = (body: unknown) => ({ method: "POST", contentType: "application/json", body });
+
+describe("推薦ロジック", () => {
+  it("100分以内で笑える → 100分超を含まず最大3件、登録作品のみ", () => {
+    const recs = recommend({ genre: null, mood: "笑いたい", maxMinutes: 100, dayOffset: 0 });
+    expect(recs.length).toBeGreaterThan(0);
+    expect(recs.length).toBeLessThanOrEqual(3);
+    for (const r of recs) {
+      const film = FILMS.find((f) => f.id === r.id)!;
+      expect(film).toBeDefined();
+      expect(film.minutes).toBeLessThanOrEqual(100);
+    }
+    expect(recs[0].id).toBe("kitchen");
+  });
+
+  it("上映時刻はローカルの上映予定と一致し、上映のない日は候補外", () => {
+    for (let day = 0; day < 7; day++) {
+      for (const r of recommend({ genre: null, mood: null, maxMinutes: null, dayOffset: day })) {
+        const film = FILMS.find((f) => f.id === r.id)!;
+        expect(r.times).toEqual(timesFor(film, day));
+        expect(r.times.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("想定外の値は補正・拒否する", () => {
+    expect(sanitizeConditions({ genre: "西部劇", mood: 1, maxMinutes: 9999, dayOffset: 42 })).toEqual({
+      genre: null, mood: null, maxMinutes: 240, dayOffset: 6,
+    });
+    expect(sanitizeConditions("garbage", 2)).toEqual({ genre: null, mood: null, maxMinutes: null, dayOffset: 2 });
+  });
+
+  it("ローカル簡易解釈: 明日、ドキドキするSF", () => {
+    expect(localParse("明日、ドキドキするSF")).toEqual({ genre: "SF", mood: "ドキドキしたい", maxMinutes: null, dayOffset: 1 });
+  });
+});
+
+describe("POST /api/recommend 本体", () => {
+  it("Gemini成功時: 解釈を補正して登録作品のみ返す（作品の創作を無視）", async () => {
+    const res = await handleRecommend(post({ message: "明日、ドキドキするSF", dayOffset: 0 }), { GEMINI_API_KEY: "x" }, {
+      callGemini: async () => ({ genre: "SF", mood: "ドキドキしたい", maxMinutes: null, dayOffset: 1, title: "架空の新作", times: ["25:00"] }),
+    });
+    expect(res.status).toBe(200);
+    const body = res.body as any;
+    expect(body.source).toBe("gemini");
+    expect(body.conditions).toEqual({ genre: "SF", mood: "ドキドキしたい", maxMinutes: null, dayOffset: 1 });
+    expect(body.recommendations[0].id).toBe("star");
+    for (const r of body.recommendations) expect(ids.has(r.id)).toBe(true);
+    expect(JSON.stringify(body)).not.toContain("架空の新作");
+  });
+
+  it("キー未設定 → 200でローカル推薦", async () => {
+    const res = await handleRecommend(post({ message: "泣ける映画が観たい" }), {});
+    expect(res.status).toBe(200);
+    expect((res.body as any).source).toBe("local");
+    expect((res.body as any).conditions.mood).toBe("感動したい");
+  });
+
+  it("429 / タイムアウト → 秘密情報を含まずローカル推薦", async () => {
+    for (const err of [Object.assign(new Error("quota key=SECRET123"), { status: 429 }), Object.assign(new Error("SECRET123"), { name: "AbortError" })]) {
+      const res = await handleRecommend(post({ message: "笑える映画" }), { GEMINI_API_KEY: "SECRET123" }, {
+        callGemini: async () => { throw err; },
+      });
+      expect(res.status).toBe(200);
+      expect((res.body as any).source).toBe("local");
+      expect(JSON.stringify(res.body)).not.toContain("SECRET123");
+    }
+  });
+
+  it("入力検査: メソッド・形式・文字数・空文字", async () => {
+    expect((await handleRecommend({ method: "GET", body: null }, {})).status).toBe(405);
+    expect((await handleRecommend({ method: "POST", contentType: "text/plain", body: "x" }, {})).status).toBe(415);
+    expect((await handleRecommend(post({ message: "あ".repeat(301) }), {})).status).toBe(400);
+    expect((await handleRecommend(post({ message: "   " }), {})).status).toBe(400);
+    expect((await handleRecommend(post(null), {})).status).toBe(400);
+  });
+
+  it("誤字・曖昧文でも落ちない", async () => {
+    const res = await handleRecommend(post({ message: "なんか、えいが？？ わらえるやつ" }), {}, {});
+    expect(res.status).toBe(200);
+  });
+});
