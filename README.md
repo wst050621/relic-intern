@@ -71,17 +71,22 @@ npm run build
 ```
 /                      利用者サイト（本番公開）：相談 → 条件の確認・修正 → おすすめ最大3本／上映作品一覧／作品詳細
 /api/recommend         推薦 API（POST のみ）
-/admin-mock.html       管理画面 UIモック（開発サーバー専用。本番・Preview のビルドには含まれない）
+/admin-demo.html       デモ用管理画面（本番公開。架空データ・メモリ上のみ・認証なし・保存されない）
+/admin-mock.html       同じ画面の開発サーバー用の入口（本番ビルドには含まれない）
   ├ 作品管理           一覧・検索・絞り込み、登録・編集（ドロワー）、削除確認
   └ 上映スケジュール   週の移動、週間表示／一覧表示、上映回の追加・編集・削除、未割り当て、一括登録
 ```
 
 ## 管理画面モックの操作手順
 
+公開デモ：https://relic-intern-kohl.vercel.app/admin-demo.html （画面上部に「デモ用管理画面｜変更内容は保存されません」と常時表示。API・DB・認証には接続しない）
+
+ローカルで開く場合：
+
 ```bash
 npm install
 npm run dev
-# ブラウザで http://localhost:5173/admin-mock.html
+# ブラウザで http://localhost:5173/admin-mock.html（または /admin-demo.html）
 ```
 
 - 画面上部に「デモ用UIモック」と表示される。**データはメモリ上だけで、再読み込みすると初期データに戻る。認証は未実装。**
@@ -108,7 +113,7 @@ npm run dev
 ## 未実装（次の開発段階）
 
 - **データの保存**：Supabase（DB・マイグレーション）。SQL は `docs/phase2/schema-draft.sql` の設計案で、未実行・未検証
-- **認証・権限**：Supabase Auth、RLS、管理 API。**認証がないため、管理画面は公開しない**
+- **認証・権限**：Supabase Auth、RLS、管理 API。**認証がないため、本物の管理画面は公開しない**（公開しているのはデモ専用の `/admin-demo.html` のみ）
 - **推薦との連携**：管理画面で登録した上映予定を、利用者サイトと推薦で参照する
 - 延期した機能：シアター管理（座席数・休止）、予告時間、曜日指定・除外日、管理者向けの訂正機能（上映中止・誤登録）
 - 商用利用の条件確認：Vercel Hobby は非商用利用が前提。Supabase・Gemini・映画データの条件も要確認（`docs/phase2/detailed-design.md` §13）

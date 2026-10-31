@@ -73,7 +73,7 @@ export default function AdminApp() {
         <div className="admin-top-inner">
           <a className="brand" href="#films" aria-label="管理画面トップ">
             <span className="brand-mark" aria-hidden="true">✦</span>
-            <span>MOVIE AI <small>THEATER ADMIN</small></span>
+            <span>MOVIE AI <small>THEATER ADMIN · DEMO</small></span>
           </a>
           <nav className="admin-nav" aria-label="管理メニュー">
             <button type="button" aria-current={view === "films" ? "page" : undefined} onClick={() => setView("films")}>作品管理</button>
@@ -84,10 +84,12 @@ export default function AdminApp() {
           </nav>
           <span className="theater-pill" title="ログイン中の映画館（デモ）">◉ シネマ・デモ館</span>
         </div>
+        {/* 本物の管理画面と誤認されないよう、ヘッダー内に常時表示する */}
+        <div className="demo-banner" role="note">
+          <b>デモ用管理画面｜変更内容は保存されません</b>
+          <span className="demo-banner-sub">認証なし・架空データのみ。再読み込みで初期状態に戻ります。</span>
+        </div>
       </header>
-      <div className="demo-banner" role="note">
-        <b>デモ用UIモック</b>：認証は未実装です。変更は保存されず、再読み込みで元に戻ります。作品・上映予定はすべて架空のデータです。
-      </div>
 
       <main className="admin-main">
         {view === "films" ? (
