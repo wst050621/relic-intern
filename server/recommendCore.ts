@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 import { DAYS, GENRES, MOODS } from "../shared/films.js";
 import {
   EMPTY_CONDITIONS, MAX_MESSAGE_LENGTH, localParse, recommend, sanitizeConditions,
@@ -21,7 +21,12 @@ export interface CoreResult {
 
 export type GeminiCaller = (message: string, todayInfo: string) => Promise<unknown>;
 
-const DEFAULT_MODEL = "gemini-2.5-flash";
+// GEMINI_MODEL（Vercel環境変数）が優先。未設定時の既定値
+export const DEFAULT_MODEL = "gemini-3.6-flash";
+
+export function resolveModel(env: { GEMINI_MODEL?: string }): string {
+  return env.GEMINI_MODEL?.trim() || DEFAULT_MODEL;
+}
 const TIMEOUT_MS = 8000;
 
 const RESPONSE_SCHEMA = {
@@ -51,7 +56,7 @@ export function todayInfo(now = new Date(), defaultDay = 0): string {
   return `日付表（Asia/Tokyo）\n${rows.join("\n")}\n既定の dayOffset: ${defaultDay}`;
 }
 
-export function createGeminiCaller(apiKey: string, model = DEFAULT_MODEL): GeminiCaller {
+export function createGeminiCaller(apiKey: string, model: string): GeminiCaller {
   const ai = new GoogleGenAI({ apiKey });
   return async (message, info) => {
     const controller = new AbortController();
@@ -64,7 +69,8 @@ export function createGeminiCaller(apiKey: string, model = DEFAULT_MODEL): Gemin
           systemInstruction: SYSTEM_INSTRUCTION,
           responseMimeType: "application/json",
           responseJsonSchema: RESPONSE_SCHEMA,
-          temperature: 0,
+          // Gemini 3系は temperature を既定のままにする。単純な正規化なので思考量は抑えて応答時間を短くする
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
           abortSignal: controller.signal,
           httpOptions: { timeout: TIMEOUT_MS },
         },
@@ -104,7 +110,7 @@ export async function handleRecommend(
     return { status: 200, body: { source: "local", notice, conditions, recommendations: recommend(conditions) } };
   };
 
-  const caller = deps.callGemini ?? (env.GEMINI_API_KEY ? createGeminiCaller(env.GEMINI_API_KEY, env.GEMINI_MODEL || undefined) : null);
+  const caller = deps.callGemini ?? (env.GEMINI_API_KEY ? createGeminiCaller(env.GEMINI_API_KEY, resolveModel(env)) : null);
   if (!caller) return local("AI解析は現在利用できません（設定未完了）。キーワードから条件を推定しました。");
 
   try {

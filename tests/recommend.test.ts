@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FILMS, timesFor } from "../shared/films";
 import { localParse, recommend, sanitizeConditions } from "../shared/recommend";
-import { handleRecommend } from "../server/recommendCore";
+import { DEFAULT_MODEL, handleRecommend, resolveModel } from "../server/recommendCore";
 
 const ids = new Set(FILMS.map((f) => f.id));
 const post = (body: unknown) => ({ method: "POST", contentType: "application/json", body });
@@ -84,5 +84,27 @@ describe("POST /api/recommend 本体", () => {
   it("誤字・曖昧文でも落ちない", async () => {
     const res = await handleRecommend(post({ message: "なんか、えいが？？ わらえるやつ" }), {}, {});
     expect(res.status).toBe(200);
+  });
+});
+
+describe("Geminiモデル設定", () => {
+  it("GEMINI_MODEL を優先し、未設定・空なら gemini-3.6-flash", () => {
+    expect(DEFAULT_MODEL).toBe("gemini-3.6-flash");
+    expect(resolveModel({})).toBe("gemini-3.6-flash");
+    expect(resolveModel({ GEMINI_MODEL: "  " })).toBe("gemini-3.6-flash");
+    expect(resolveModel({ GEMINI_MODEL: "gemini-3.6-flash" })).toBe("gemini-3.6-flash");
+    expect(resolveModel({ GEMINI_MODEL: "other-model" })).toBe("other-model");
+  });
+
+  it("「明日、100分以内で笑える映画を観たい」→ 100分超を含まず最大3件、明日の上映のみ", async () => {
+    const res = await handleRecommend(post({ message: "明日、100分以内で笑える映画を観たい", dayOffset: 0 }), {});
+    const body = res.body as any;
+    expect(body.conditions).toEqual({ genre: null, mood: "笑いたい", maxMinutes: 100, dayOffset: 1 });
+    expect(body.recommendations.length).toBeLessThanOrEqual(3);
+    for (const r of body.recommendations) {
+      const film = FILMS.find((f) => f.id === r.id)!;
+      expect(film.minutes).toBeLessThanOrEqual(100);
+      expect(r.times).toEqual(timesFor(film, 1));
+    }
   });
 });

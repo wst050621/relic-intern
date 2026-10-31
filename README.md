@@ -38,9 +38,19 @@ npm run build
 
 ## Vercel デプロイ
 
-1. Vercel で本リポジトリを Import（Framework: Vite は自動検出、`api/` は Function になる）。
-2. Project Settings → Environment Variables に `GEMINI_API_KEY` を登録（任意で `GEMINI_MODEL`、既定 `gemini-2.5-flash`）。
-   GitHub Actions Secrets は Vercel に自動では渡らない。`VITE_` 接頭辞は付けないこと。
-3. 公開デモのため Google AI Studio 側で予算・クォータを確認する。
+| 項目 | 値 |
+| --- | --- |
+| Framework Preset | Vite |
+| Root Directory | `./` |
+| Build Command | `npm run build` |
+| Output Directory | `dist` |
+| Install Command | `npm install` |
+| 環境変数 | `GEMINI_API_KEY`（必須・秘密）、`GEMINI_MODEL=gemini-3.6-flash` |
+
+- `api/recommend.ts` は追加設定なしで `/api/recommend` の Node.js Function になる（`vercel.json` 不要）。
+- GitHub Secrets は Vercel に自動では渡らない。Vercel の Environment Variables に別途登録する。`VITE_` 接頭辞は付けないこと。
+- 環境変数を追加・変更した後は再デプロイが必要。
+- Production Branch（通常 `main`）にアプリ本体が入っている状態で Import すること。
+- 公開デモのため Google AI Studio 側で予算・クォータを確認する。
 
 作品・上映予定・ポスターはすべて架空／CSSによる自作装飾です。
