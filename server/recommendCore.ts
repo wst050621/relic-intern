@@ -27,7 +27,8 @@ export const DEFAULT_MODEL = "gemini-3.6-flash";
 export function resolveModel(env: { GEMINI_MODEL?: string }): string {
   return env.GEMINI_MODEL?.trim() || DEFAULT_MODEL;
 }
-const TIMEOUT_MS = 8000;
+// Gemini API の deadline 下限は10秒。AbortController と SDK の httpOptions.timeout で同じ値を使う
+export const TIMEOUT_MS = 20000;
 
 export const UNSPECIFIED = "指定なし";
 
