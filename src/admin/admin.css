@@ -180,3 +180,12 @@
   .batch-table tr{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:8px}
   .batch-table td{border:0;padding:1px 0}
 }
+
+/* 週の移動・表示切替 */
+.week-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 0 12px}
+.week-buttons{display:flex;gap:6px;flex-wrap:wrap}
+.week-buttons .btn-secondary{padding:8px 12px;font-size:12px}
+.week-range{margin:0;font-weight:700;font-size:13px}
+.week-list{background:var(--surface)}
+.link-btn.small{font-family:inherit;font-size:12.5px}
+@media(max-width:720px){.week-nav{flex-direction:column;align-items:stretch}.week-buttons{display:grid;grid-template-columns:1fr 1fr 1fr}}

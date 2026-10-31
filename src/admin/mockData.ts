@@ -236,3 +236,23 @@ export function applyBatch(
   const added: Showtime[] = rows.map((r) => ({ id: makeId(), filmId: r.filmId, screenId: r.screenId, date: r.date, start: r.start, status: "draft" }));
   return { ok: true, showtimes: [...showtimes, ...added], added: added.length };
 }
+
+/* ───────── 週間表示（今日を起点とした7日単位。旧管理画面の前週・翌週を再利用） ───────── */
+
+/** 今日から offset 週後の7日間（YYYY-MM-DD） */
+export function weekDays(offset: number, base = new Date()): string[] {
+  return Array.from({ length: DAYS }, (_, i) => isoDate(offset * DAYS + i, base));
+}
+
+/** 日付が今日から何週後の週に入るか（過去は負の値） */
+export function weekOffsetOf(date: string, base = new Date()): number {
+  const diff = Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${isoDate(0, base)}T00:00:00Z`)) / 86400000);
+  return Math.floor(diff / DAYS);
+}
+
+/** 一括登録で選べる期間：表示中の週のうち今日以降（すべて過去なら null） */
+export function batchRange(week: string[], today = isoDate(0)): { min: string; max: string } | null {
+  const max = week[week.length - 1];
+  if (max < today) return null;
+  return { min: week[0] < today ? today : week[0], max };
+}
