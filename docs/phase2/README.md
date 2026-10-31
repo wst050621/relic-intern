@@ -9,6 +9,7 @@
 | `README.md`（本書） | 要求定義、機能要件、画面遷移図、UIモック、スクリーンショット、基本設計時のデータ構造案、データソースの調査観点 |
 | [`detailed-design.md`](./detailed-design.md) | **詳細設計書**（DB・ER図・テーブル定義、認証・RLS、上映スケジュール、公開状態、推薦機能との連携、API 仕様、画面と API の対応、移行計画、テスト計画、実装タスク、未解決事項） |
 | [`schema-draft.sql`](./schema-draft.sql) | Supabase のスキーマ・RLS・関数の SQL 設計案（**実行していない**） |
+| [`legacy-admin-comparison.md`](./legacy-admin-comparison.md) | 旧管理画面（movie-ai-chatbot）との比較、再利用する機能、一括登録の要求定義、設計更新案（**提案・確認待ち**） |
 
 ### UIレビュー結果（承認事項）
 
