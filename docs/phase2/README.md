@@ -123,6 +123,9 @@ flowchart LR
 | 割り当て時の重複（原因表示） | `screenshots/09-assign-conflict-1440.png` | `screenshots/09-assign-conflict-375.png` |
 | 未割り当ての回を編集してシアターへ移した後（件数 11→10） | `screenshots/10-after-assign-1440.png` | `screenshots/10-after-assign-375.png` |
 | 上映時間の変更で生じた重複の表示（削除されない） | `screenshots/11-conflict-warning-1440.png` | `screenshots/11-conflict-warning-375.png` |
+| 一括登録：重複あり（全件拒否） | `screenshots/12-batch-conflict-1440.png` | `screenshots/12-batch-conflict-375.png` |
+| 一括登録：重複なしのプレビュー | `screenshots/13-batch-preview-ok-1440.png` | `screenshots/13-batch-preview-ok-375.png` |
+| 一括登録の後（下書きとして追加） | `screenshots/14-batch-registered-1440.png` | `screenshots/14-batch-registered-375.png` |
 
 撮影に使った Playwright のロケールが英語のため、時刻入力が「AM/PM」で表示されている。日本語環境のブラウザでは24時間表記になる。
 

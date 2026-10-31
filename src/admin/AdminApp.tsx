@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { DAYS, GENRES, MOODS, type Genre, type Mood } from "../../shared/films";
 import {
-  SCREENS, STATUS_LABEL, TURNOVER_MINUTES, assignScreen, describeConflict, fromMinutes, initialFilms, initialShowtimes, isoDate,
+  BATCH_LIMITS, SCREENS, STATUS_LABEL, TURNOVER_MINUTES, applyBatch, assignScreen, buildBatchRows, parseStartTimes, previewBatch, describeConflict, fromMinutes, initialFilms, initialShowtimes, isoDate,
   listConflicts, screenName, toMinutes,
-  type AdminFilm, type FilmStatus, type Showtime,
+  type AdminFilm, type BatchRow, type FilmStatus, type Showtime,
 } from "./mockData";
 
 type View = "films" | "schedule";
@@ -392,6 +392,7 @@ function ScheduleView(props: {
   const [date, setDate] = useState(todayIso);
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [batchOpen, setBatchOpen] = useState(false);
   const days = Array.from({ length: DAYS }, (_, i) => isoDate(i));
   const filmById = (id: string) => props.films.find((f) => f.id === id);
   const selectable = props.films.filter((f) => f.status !== "archived");
@@ -409,7 +410,7 @@ function ScheduleView(props: {
     if (!/^\d{2}:\d{2}$/.test(d.start)) return "開始時刻を入力してください。";
     const reason = describeConflict({ ...d, id }, props.showtimes, props.films);
     if (reason) return reason;
-    props.setShowtimes((list) => (id ? list.map((s) => (s.id === id ? { ...s, ...d } : s)) : [...list, { ...d, id: newId("show") }]));
+    props.setShowtimes((list) => (id ? list.map((s) => (s.id === id ? { ...s, ...d } : s)) : [...list, { ...d, id: newId("show"), status: "draft" }]));
     props.notify(`${dateLabel(d.date)} ${d.start}「${filmById(d.filmId)?.name}」を${id ? "更新" : "追加"}しました`);
     setAdding(false);
     setEditingId(null);
@@ -458,6 +459,7 @@ function ScheduleView(props: {
           <b>{f?.name ?? "（削除された作品）"}</b>
           <span>{f?.minutes}分{f && f.status !== "published" ? `｜${STATUS_LABEL[f.status]}` : ""}</span>
         </div>
+        {s.status === "draft" && <span className="draft-badge">下書き</span>}
         {conflict && <p className="show-warn" role="note">⚠ 重複：{conflict}</p>}
         {s.screenId === null && <AssignControl show={s} onAssign={(screenId) => assign(s, screenId)} />}
         <div className="show-actions">
@@ -476,7 +478,10 @@ function ScheduleView(props: {
           <h1 id="schedule-title">上映スケジュール</h1>
           <p className="page-sub">日付を選んで、上映回の追加・編集・削除やシアターの割り当てができます。</p>
         </div>
-        <button type="button" className="btn-primary" onClick={() => { setAdding(true); setEditingId(null); }} disabled={adding}>＋ 上映回を追加</button>
+        <div className="head-actions">
+          <button type="button" className="btn-secondary" onClick={() => setBatchOpen(true)}>＋ 一括登録</button>
+          <button type="button" className="btn-primary" onClick={() => { setAdding(true); setEditingId(null); }} disabled={adding}>＋ 上映回を追加</button>
+        </div>
       </div>
 
       {(unassignedAll.length > 0 || conflicts.size > 0) && (
@@ -553,7 +558,163 @@ function ScheduleView(props: {
         })}
       </div>
       <p className="hint">終了時刻は上映時間から自動計算します。同じシアターでは、終了後{TURNOVER_MINUTES}分の入れ替え時間を空けて登録してください。重なりのある上映回や未割り当ての上映回が自動で削除されることはありません。</p>
+      {batchOpen && (
+        <BatchDialog
+          films={selectable}
+          allFilms={props.films}
+          showtimes={props.showtimes}
+          initialFilmId={props.filmFilter !== "all" ? props.filmFilter : ""}
+          onCancel={() => setBatchOpen(false)}
+          onApply={(rows) => {
+            const result = applyBatch(rows, props.showtimes, props.films, () => newId("show"));
+            if (!result.ok) return result.conflicts > 0 ? `重なる上映回が ${result.conflicts} 件あるため、登録しませんでした（0件）。` : "登録する上映回がありません。";
+            props.setShowtimes(result.showtimes);
+            props.notify(`${result.added}件の上映回を下書きとして登録しました`);
+            setBatchOpen(false);
+            setDate(rows[0].date);
+            return null;
+          }}
+        />
+      )}
     </section>
+  );
+}
+
+function BatchDialog(props: {
+  films: AdminFilm[];
+  allFilms: AdminFilm[];
+  showtimes: Showtime[];
+  initialFilmId: string;
+  onCancel: () => void;
+  onApply: (rows: BatchRow[]) => string | null;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const minDate = isoDate(0);
+  const maxDate = isoDate(DAYS - 1);
+  const [filmId, setFilmId] = useState(props.initialFilmId);
+  const [screenId, setScreenId] = useState(SCREENS[0].id);
+  const [dateFrom, setDateFrom] = useState(minDate);
+  const [dateTo, setDateTo] = useState(maxDate);
+  const [timesText, setTimesText] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [preview, setPreview] = useState<BatchRow[] | null>(null);
+  const film = props.films.find((f) => f.id === filmId);
+
+  useEffect(() => {
+    ref.current?.showModal();
+  }, []);
+
+  // 入力を変えたら確認結果を破棄する（古い確認結果での登録を防ぐ）
+  const edit = <T,>(setter: (v: T) => void) => (v: T) => { setter(v); setPreview(null); setError(null); };
+
+  function normalizeTimes() {
+    if (!timesText.trim()) return;
+    try {
+      setTimesText(parseStartTimes(timesText).join(", "));
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  function check() {
+    try {
+      const times = parseStartTimes(timesText);
+      setTimesText(times.join(", "));
+      const rows = buildBatchRows({ filmId, screenId, dateFrom, dateTo, times }, props.allFilms, minDate, maxDate);
+      setPreview(previewBatch(rows, props.showtimes, props.allFilms));
+      setError(null);
+    } catch (e) {
+      setPreview(null);
+      setError((e as Error).message);
+    }
+  }
+
+  let endHint = "作品と開始時刻を入力すると終了時刻を表示します";
+  if (film && timesText.trim()) {
+    try {
+      endHint = parseStartTimes(timesText).map((t) => `${t} → ${fromMinutes(toMinutes(t) + film.minutes)}`).join(" / ");
+    } catch (e) {
+      endHint = (e as Error).message;
+    }
+  }
+  const conflicts = preview?.filter((r) => r.conflict).length ?? 0;
+  const days = preview ? new Set(preview.map((r) => r.date)).size : 0;
+
+  return (
+    <dialog ref={ref} className="drawer batch" aria-labelledby="batch-title" onCancel={(e) => { e.preventDefault(); props.onCancel(); }}>
+      <div className="drawer-head">
+        <div>
+          <div className="eyebrow">BULK SCHEDULE</div>
+          <h2 id="batch-title">上映回を一括登録</h2>
+        </div>
+        <button type="button" className="icon-btn" aria-label="閉じる" onClick={props.onCancel}>×</button>
+      </div>
+      <div className="drawer-body">
+        <div className="batch-grid">
+          <label className="field-inline">作品
+            <select value={filmId} onChange={(e) => edit(setFilmId)(e.target.value)}>
+              <option value="">選択してください</option>
+              {props.films.map((f) => <option key={f.id} value={f.id}>{f.name}（{f.minutes}分）</option>)}
+            </select>
+          </label>
+          <label className="field-inline">シアター
+            <select value={screenId} onChange={(e) => edit(setScreenId)(e.target.value)}>
+              {SCREENS.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </label>
+          <label className="field-inline">開始日
+            <input type="date" min={minDate} max={maxDate} value={dateFrom} onChange={(e) => edit(setDateFrom)(e.target.value)} />
+          </label>
+          <label className="field-inline">終了日
+            <input type="date" min={minDate} max={maxDate} value={dateTo} onChange={(e) => edit(setDateTo)(e.target.value)} />
+          </label>
+          <label className="field-inline wide">上映開始時刻（カンマ区切り・最大{BATCH_LIMITS.maxTimes}件）
+            <input
+              inputMode="numeric" placeholder="1000, 13:30, 1830" value={timesText}
+              onChange={(e) => edit(setTimesText)(e.target.value)} onBlur={normalizeTimes}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); normalizeTimes(); } }}
+            />
+          </label>
+        </div>
+        <p className="end-time" aria-live="polite">{endHint}</p>
+        <p className="hint">登録した上映回は「下書き」になり、利用者サイトの公開候補にはなりません。モックでは表示中の7日間（{minDate}〜{maxDate}）を指定できます。</p>
+        {error && <p className="field-error" role="alert">{error}</p>}
+
+        {preview && (
+          <section className="batch-preview" aria-label="登録内容の確認">
+            <p className={`batch-summary ${conflicts ? "has-conflict" : ""}`} role="status">
+              登録予定 <b>{preview.length}件</b>（{days}日 × {preview.length / Math.max(days, 1)}回）
+              {conflicts > 0 ? <>／<b>重複 {conflicts}件</b>：重複を解消するまで登録できません（1件も登録されません）</> : <>／重複なし</>}
+            </p>
+            <table className="batch-table">
+              <thead><tr><th scope="col">上映日</th><th scope="col">時刻</th><th scope="col">シアター</th><th scope="col">状態</th><th scope="col">確認結果</th></tr></thead>
+              <tbody>
+                {preview.map((r) => (
+                  <tr key={r.key} className={r.conflict ? "is-conflict" : ""}>
+                    <td>{dateLabel(r.date)}</td>
+                    <td>{r.start}〜{film ? fromMinutes(toMinutes(r.start) + film.minutes) : ""}</td>
+                    <td>{SCREENS.find((s) => s.id === r.screenId)?.name}</td>
+                    <td>下書き</td>
+                    <td>{r.conflict ? <span className="conflict-text">⚠ {r.conflict}</span> : "登録可能"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        )}
+      </div>
+      <div className="drawer-foot">
+        <button type="button" className="btn-secondary" onClick={props.onCancel}>キャンセル</button>
+        <span className="spacer" />
+        <button type="button" className="btn-secondary" onClick={check}>登録内容を確認</button>
+        <button
+          type="button" className="btn-primary" disabled={!preview || conflicts > 0 || preview.length === 0}
+          onClick={() => { if (preview) setError(props.onApply(preview)); }}
+        >
+          一括登録{preview && !conflicts ? `（${preview.length}件）` : ""}
+        </button>
+      </div>
+    </dialog>
   );
 }
 
