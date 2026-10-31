@@ -9,7 +9,8 @@ type Status =
   | { kind: "error"; message: string };
 
 const EXAMPLES = ["今日は気軽に笑える100分以内の映画", "泣ける映画が観たい", "明日、ドキドキするSF"];
-const CLIENT_TIMEOUT_MS = 12000;
+// サーバー側の Gemini タイムアウト（20秒）より長くする
+const CLIENT_TIMEOUT_MS = 25000;
 
 function dayAt(offset: number): Date {
   const n = new Date();

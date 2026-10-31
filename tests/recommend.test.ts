@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { FILMS, timesFor } from "../shared/films";
 import { localParse, recommend, sanitizeConditions } from "../shared/recommend";
-import { DEFAULT_MODEL, RESPONSE_SCHEMA, UNSPECIFIED, describeGeminiError, handleRecommend, resolveModel } from "../server/recommendCore";
+import { DEFAULT_MODEL, RESPONSE_SCHEMA, TIMEOUT_MS, createGeminiCaller, UNSPECIFIED, describeGeminiError, handleRecommend, resolveModel } from "../server/recommendCore";
 
 const ids = new Set(FILMS.map((f) => f.id));
 const post = (body: unknown) => ({ method: "POST", contentType: "application/json", body });
@@ -174,5 +174,37 @@ describe("Gemini エラーのログ要約", () => {
     expect(logs[0]).toContain("reason=API_KEY_INVALID");
     expect(JSON.stringify(res.body)).not.toContain("API_KEY_INVALID");
     expect((res.body as any).source).toBe("local");
+  });
+});
+
+describe("Gemini タイムアウト設定", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("SDK が送る deadline は Gemini API の下限10秒以上（20秒）", async () => {
+    let headers: Headers | null = null;
+    vi.stubGlobal("fetch", async (_url: unknown, init: RequestInit) => {
+      headers = new Headers(init.headers);
+      return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"genre":"SF","mood":"指定なし","maxMinutes":0,"dayOffset":0}' }] } }] }), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    });
+    await createGeminiCaller("dummy", DEFAULT_MODEL)("SF", "info");
+    expect(TIMEOUT_MS).toBe(20000);
+    const deadline = Number(headers!.get("x-server-timeout"));
+    expect(deadline).toBeGreaterThanOrEqual(10);
+    expect(deadline).toBe(TIMEOUT_MS / 1000);
+  });
+
+  it("Gemini の deadline エラー（400）でもローカル推薦へフォールバックし、詳細は返さない", async () => {
+    const err = Object.assign(new Error(JSON.stringify({ error: { code: 400, status: "INVALID_ARGUMENT", message: "Manually set deadline 8s is too short. Minimum allowed deadline is 10s." } })), { name: "ApiError", status: 400 });
+    const logs: string[] = [];
+    const res = await handleRecommend(post({ message: "笑える映画" }), { GEMINI_API_KEY: "MYSECRETKEY" }, {
+      callGemini: async () => { throw err; },
+      log: (m) => logs.push(m),
+    });
+    expect((res.body as any).source).toBe("local");
+    expect(JSON.stringify(res.body)).not.toContain("deadline");
+    expect(logs[0]).toContain("deadline 8s is too short");
+    expect(logs[0]).not.toContain("MYSECRETKEY");
   });
 });
