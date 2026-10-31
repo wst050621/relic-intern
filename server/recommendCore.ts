@@ -29,12 +29,16 @@ export function resolveModel(env: { GEMINI_MODEL?: string }): string {
 }
 const TIMEOUT_MS = 8000;
 
-const RESPONSE_SCHEMA = {
+export const UNSPECIFIED = "指定なし";
+
+// responseJsonSchema が受け付けるキーワードのみ使用（enum は文字列/数値のみ。null や型配列は使わない）。
+// 「指定なし」と maxMinutes=0 は sanitizeConditions で null に補正される
+export const RESPONSE_SCHEMA = {
   type: "object",
   properties: {
-    genre: { type: ["string", "null"], enum: [...GENRES, null] },
-    mood: { type: ["string", "null"], enum: [...MOODS, null] },
-    maxMinutes: { type: ["integer", "null"] },
+    genre: { type: "string", enum: [...GENRES, UNSPECIFIED] },
+    mood: { type: "string", enum: [...MOODS, UNSPECIFIED] },
+    maxMinutes: { type: "integer", minimum: 0, maximum: 240 },
     dayOffset: { type: "integer", minimum: 0, maximum: DAYS - 1 },
   },
   required: ["genre", "mood", "maxMinutes", "dayOffset"],
@@ -44,9 +48,9 @@ const SYSTEM_INSTRUCTION = [
   "あなたは映画館の検索フォームへの入力正規化器です。",
   "利用者の日本語の相談文を、検索条件JSONへ変換するだけを行います。",
   "作品名・上映時刻・あらすじなどを新たに創作・推測してはいけません。JSON以外を出力してはいけません。",
-  `genre は次のいずれか、該当なしなら null: ${GENRES.join(" / ")}`,
-  `mood は次のいずれか、該当なしなら null: ${MOODS.join(" / ")}（例: 泣ける→感動したい、笑える→笑いたい、怖い・ハラハラ→ドキドキしたい）`,
-  "maxMinutes は上映時間の上限（分）。「2時間以内」は120、指定がなければ null。",
+  `genre は次のいずれか、該当なしなら「${UNSPECIFIED}」: ${GENRES.join(" / ")}`,
+  `mood は次のいずれか、該当なしなら「${UNSPECIFIED}」: ${MOODS.join(" / ")}（例: 泣ける→感動したい、笑える→笑いたい、怖い・ハラハラ→ドキドキしたい）`,
+  "maxMinutes は上映時間の上限（分）。「2時間以内」は120、指定がなければ 0。",
   `dayOffset は今日を0とした鑑賞日の日数（0〜${DAYS - 1}）。明日=1、明後日=2。曜日指定は下記の日付表から求め、範囲外・指定なしは既定値を使う。`,
 ].join("\n");
 
@@ -82,6 +86,25 @@ export function createGeminiCaller(apiKey: string, model: string): GeminiCaller 
   };
 }
 
+/** Vercelログ用のエラー要約。Googleのエラー理由（API_KEY_INVALID 等）と短いメッセージのみ。キーは伏せる */
+export function describeGeminiError(err: unknown, apiKey?: string): string {
+  const e = err as { status?: unknown; name?: unknown; message?: unknown };
+  let reason = "n/a";
+  let detail = typeof e?.message === "string" ? e.message : "";
+  try {
+    const body = JSON.parse(detail) as { error?: { message?: string; status?: string; details?: Array<{ reason?: string }> } };
+    reason = body.error?.details?.find((d) => d.reason)?.reason ?? body.error?.status ?? "n/a";
+    detail = body.error?.message ?? detail;
+  } catch {
+    // JSONでないメッセージ（タイムアウト等）はそのまま要約
+  }
+  if (apiKey) detail = detail.split(apiKey).join("[redacted]");
+  detail = detail.replace(/AIza[0-9A-Za-z_-]{10,}/g, "[redacted]").replace(/\s+/g, " ").slice(0, 200);
+  const status = typeof e?.status === "number" ? e.status : "n/a";
+  const name = typeof e?.name === "string" ? e.name : "unknown";
+  return `gemini_failed status=${status} name=${name} reason=${reason} detail="${detail}"`;
+}
+
 function errorStatus(err: unknown): number | undefined {
   const s = (err as { status?: unknown })?.status;
   return typeof s === "number" ? s : undefined;
@@ -110,7 +133,9 @@ export async function handleRecommend(
     return { status: 200, body: { source: "local", notice, conditions, recommendations: recommend(conditions) } };
   };
 
-  const caller = deps.callGemini ?? (env.GEMINI_API_KEY ? createGeminiCaller(env.GEMINI_API_KEY, resolveModel(env)) : null);
+  // 貼り付け時の前後空白・改行による API_KEY_INVALID を防ぐ
+  const apiKey = env.GEMINI_API_KEY?.trim();
+  const caller = deps.callGemini ?? (apiKey ? createGeminiCaller(apiKey, resolveModel(env)) : null);
   if (!caller) return local("AI解析は現在利用できません（設定未完了）。キーワードから条件を推定しました。");
 
   try {
@@ -119,7 +144,7 @@ export async function handleRecommend(
     return { status: 200, body: { source: "gemini", conditions, recommendations: recommend(conditions) } };
   } catch (err) {
     const status = errorStatus(err);
-    deps.log?.(`gemini_failed status=${status ?? "n/a"} name=${(err as Error)?.name ?? "unknown"}`);
+    deps.log?.(describeGeminiError(err, apiKey));
     if (status === 429) return local("AIの利用が混み合っています。キーワードから条件を推定しました。");
     return local("AI解析に失敗しました。キーワードから条件を推定しました。");
   }

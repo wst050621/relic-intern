@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FILMS, timesFor } from "../shared/films";
 import { localParse, recommend, sanitizeConditions } from "../shared/recommend";
-import { DEFAULT_MODEL, handleRecommend, resolveModel } from "../server/recommendCore";
+import { DEFAULT_MODEL, RESPONSE_SCHEMA, UNSPECIFIED, describeGeminiError, handleRecommend, resolveModel } from "../server/recommendCore";
 
 const ids = new Set(FILMS.map((f) => f.id));
 const post = (body: unknown) => ({ method: "POST", contentType: "application/json", body });
@@ -106,5 +106,73 @@ describe("Geminiモデル設定", () => {
       expect(film.minutes).toBeLessThanOrEqual(100);
       expect(r.times).toEqual(timesFor(film, 1));
     }
+  });
+});
+
+describe("Gemini レスポンス形式（responseJsonSchema）", () => {
+  // Gemini API の responseJsonSchema が受け付けるキーワード（公式 API 定義より）
+  const SUPPORTED = new Set(["$id", "$defs", "$ref", "$anchor", "type", "format", "title", "description", "enum", "items", "prefixItems",
+    "minItems", "maxItems", "minimum", "maximum", "anyOf", "oneOf", "properties", "additionalProperties", "required", "propertyOrdering"]);
+
+  function walk(node: any, path: string): string[] {
+    const errors: string[] = [];
+    for (const [k, v] of Object.entries(node)) {
+      if (!SUPPORTED.has(k)) errors.push(`${path}: unsupported keyword ${k}`);
+      if (k === "type" && typeof v !== "string") errors.push(`${path}: type must be a single string`);
+      if (k === "enum") for (const e of v as unknown[]) if (typeof e !== "string" && typeof e !== "number") errors.push(`${path}: enum value ${String(e)}`);
+    }
+    for (const [k, child] of Object.entries(node.properties ?? {})) errors.push(...walk(child, `${path}.${k}`));
+    return errors;
+  }
+
+  it("サポート対象のキーワードのみ・enum は文字列/数値のみ・null を含まない", () => {
+    expect(walk(RESPONSE_SCHEMA, "$")).toEqual([]);
+  });
+
+  it("「指定なし」・maxMinutes=0 は null に補正される", async () => {
+    const res = await handleRecommend(post({ message: "何か観たい" }), { GEMINI_API_KEY: "x" }, {
+      callGemini: async () => ({ genre: UNSPECIFIED, mood: UNSPECIFIED, maxMinutes: 0, dayOffset: 0 }),
+    });
+    expect((res.body as any).source).toBe("gemini");
+    expect((res.body as any).conditions).toEqual({ genre: null, mood: null, maxMinutes: null, dayOffset: 0 });
+  });
+
+  it("スキーマ準拠の Gemini 出力「明日、100分以内で笑える映画を観たい」", async () => {
+    const res = await handleRecommend(post({ message: "明日、100分以内で笑える映画を観たい" }), { GEMINI_API_KEY: "x" }, {
+      callGemini: async () => ({ genre: UNSPECIFIED, mood: "笑いたい", maxMinutes: 100, dayOffset: 1 }),
+    });
+    const body = res.body as any;
+    expect(body.source).toBe("gemini");
+    expect(body.recommendations[0].id).toBe("kitchen");
+    for (const r of body.recommendations) expect(FILMS.find((f) => f.id === r.id)!.minutes).toBeLessThanOrEqual(100);
+  });
+});
+
+describe("Gemini エラーのログ要約", () => {
+  const apiErr = (reason: string, message: string) =>
+    Object.assign(new Error(JSON.stringify({ error: { code: 400, message, status: "INVALID_ARGUMENT", details: [{ reason }] } })), { name: "ApiError", status: 400 });
+
+  it("API_KEY_INVALID を区別でき、キーは伏せられる", () => {
+    const line = describeGeminiError(apiErr("API_KEY_INVALID", "API key not valid. key=MYSECRETKEY AIzaSyDUMMYDUMMYDUMMY"), "MYSECRETKEY");
+    expect(line).toContain("status=400");
+    expect(line).toContain("reason=API_KEY_INVALID");
+    expect(line).not.toContain("MYSECRETKEY");
+    expect(line).not.toContain("AIzaSyDUMMY");
+  });
+
+  it("リクエスト形式エラーはメッセージで区別できる", () => {
+    const err = Object.assign(new Error(JSON.stringify({ error: { code: 400, message: "Invalid value at 'generation_config'", status: "INVALID_ARGUMENT" } })), { name: "ApiError", status: 400 });
+    expect(describeGeminiError(err)).toContain("reason=INVALID_ARGUMENT detail=\"Invalid value at 'generation_config'\"");
+  });
+
+  it("ログに出しても公開レスポンスには詳細を返さない／キーの前後空白を除去", async () => {
+    const logs: string[] = [];
+    const res = await handleRecommend(post({ message: "笑える映画" }), { GEMINI_API_KEY: "  MYSECRETKEY\n" }, {
+      callGemini: async () => { throw apiErr("API_KEY_INVALID", "API key not valid."); },
+      log: (m) => logs.push(m),
+    });
+    expect(logs[0]).toContain("reason=API_KEY_INVALID");
+    expect(JSON.stringify(res.body)).not.toContain("API_KEY_INVALID");
+    expect((res.body as any).source).toBe("local");
   });
 });
