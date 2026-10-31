@@ -32,5 +32,11 @@ function devApi(): Plugin {
 
 export default defineConfig({
   plugins: [react(), devApi()],
+  build: {
+    rollupOptions: {
+      // 利用者サイト（index.html）に加え、デモ用管理画面（admin-demo.html）を出力する。admin-mock.html は開発専用で出力しない
+      input: { main: "index.html", adminDemo: "admin-demo.html" },
+    },
+  },
   test: { include: ["tests/**/*.test.ts"] },
 });

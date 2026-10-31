@@ -1,13 +1,14 @@
 /* 管理画面モック。トークン（--bg, --accent 等）は利用者サイトの styles.css を共有する */
 .admin{min-height:100vh;display:flex;flex-direction:column}
-.admin-top{height:64px;border-bottom:1px solid var(--line);background:#fafaf7f2;position:sticky;top:0;z-index:20;backdrop-filter:blur(12px)}
-.admin-top-inner{height:100%;width:min(1240px,calc(100% - 40px));margin:auto;display:flex;align-items:center;gap:28px}
+.admin-top{height:auto;border-bottom:1px solid var(--line);background:#fafaf7f2;position:sticky;top:0;z-index:20;backdrop-filter:blur(12px)}
+.admin-top-inner{height:64px;width:min(1240px,calc(100% - 40px));margin:auto;display:flex;align-items:center;gap:28px}
 .admin-top .brand{flex:none}
 .admin-nav{display:flex;gap:4px;flex:1}
 .admin-nav button{border:0;background:none;padding:8px 14px;border-radius:8px;color:var(--muted);font-weight:700;font-size:13px}
 .admin-nav button:hover{background:var(--surface2);color:var(--text)}
 .admin-nav button[aria-current="page"]{background:var(--text);color:#fff}
-.demo-banner{background:var(--accent-soft);color:var(--accent-strong);border-bottom:1px solid var(--line);font-size:12px;padding:8px 20px;text-align:center}
+.demo-banner{background:#5c3d12;color:#fff;font-size:12.5px;padding:7px 20px;text-align:center;display:flex;justify-content:center;flex-wrap:wrap;gap:4px 12px}
+.demo-banner-sub{opacity:.85;font-size:11.5px}
 .admin-main{width:min(1240px,calc(100% - 40px));margin:0 auto;padding:32px 0 72px;flex:1}
 
 .page-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:20px}
@@ -106,7 +107,7 @@
 @media(max-width:960px){.screens{grid-template-columns:1fr 1fr}.show-form-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:720px){
   .admin-top{height:auto}
-  .admin-top-inner{width:calc(100% - 24px);flex-wrap:wrap;gap:6px 12px;padding:10px 0}
+  .admin-top-inner{height:auto;width:calc(100% - 24px);flex-wrap:wrap;gap:6px 12px;padding:10px 0}
   .admin-top .brand{font-size:14px}.admin-top .theater-pill{margin-left:auto;font-size:10px;padding:5px 9px}
   .admin-nav{order:3;flex-basis:100%}.admin-nav button{flex:1;padding:9px 6px}
   .admin-main{width:calc(100% - 24px);padding:22px 0 64px}
@@ -189,3 +190,4 @@
 .week-list{background:var(--surface)}
 .link-btn.small{font-family:inherit;font-size:12.5px}
 @media(max-width:720px){.week-nav{flex-direction:column;align-items:stretch}.week-buttons{display:grid;grid-template-columns:1fr 1fr 1fr}}
+@media(max-width:720px){.demo-banner-sub{display:none}.demo-banner{padding:6px 12px}}
