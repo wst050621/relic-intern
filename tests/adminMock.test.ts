@@ -155,3 +155,35 @@ describe("管理画面モック：一括登録", () => {
     expect(applyBatch(rows, later, films, makeId)).toEqual({ ok: false, conflicts: 1 });
   });
 });
+
+describe("管理画面モック：週の移動", () => {
+  const { weekDays, weekOffsetOf, batchRange } = mock;
+  const base = new Date(2026, 9, 31); // 2026-10-31（ローカル日付）
+
+  it("前週・今週・翌週の7日間を返す", () => {
+    expect(weekDays(0, base)).toEqual(["2026-10-31", "2026-11-01", "2026-11-02", "2026-11-03", "2026-11-04", "2026-11-05", "2026-11-06"]);
+    expect(weekDays(1, base)[0]).toBe("2026-11-07");
+    expect(weekDays(-1, base)).toEqual(["2026-10-24", "2026-10-25", "2026-10-26", "2026-10-27", "2026-10-28", "2026-10-29", "2026-10-30"]);
+  });
+
+  it("日付が入る週を求める（未割り当ての日付から週へ移動するため）", () => {
+    expect(weekOffsetOf("2026-10-31", base)).toBe(0);
+    expect(weekOffsetOf("2026-11-06", base)).toBe(0);
+    expect(weekOffsetOf("2026-11-07", base)).toBe(1);
+    expect(weekOffsetOf("2026-10-30", base)).toBe(-1);
+  });
+
+  it("一括登録の期間は表示中の週に連動し、過去の日付は選べない", () => {
+    expect(batchRange(weekDays(1, base), "2026-10-31")).toEqual({ min: "2026-11-07", max: "2026-11-13" });
+    expect(batchRange(weekDays(0, base), "2026-11-02")).toEqual({ min: "2026-11-02", max: "2026-11-06" });
+    expect(batchRange(weekDays(-1, base), "2026-10-31")).toBeNull();
+  });
+
+  it("週を移動しても上映回のデータは変わらない（表示は絞り込みだけ）", () => {
+    const all = initialShowtimes(films);
+    const snapshot = JSON.stringify(all);
+    const inWeek = (w: string[]) => all.filter((s) => w.includes(s.date)).length;
+    expect(inWeek(weekDays(0)) + inWeek(weekDays(1)) + inWeek(weekDays(-1))).toBe(all.length);
+    expect(JSON.stringify(all)).toBe(snapshot);
+  });
+});

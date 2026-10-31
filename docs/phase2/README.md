@@ -126,6 +126,8 @@ flowchart LR
 | 一括登録：重複あり（全件拒否） | `screenshots/12-batch-conflict-1440.png` | `screenshots/12-batch-conflict-375.png` |
 | 一括登録：重複なしのプレビュー | `screenshots/13-batch-preview-ok-1440.png` | `screenshots/13-batch-preview-ok-375.png` |
 | 一括登録の後（下書きとして追加） | `screenshots/14-batch-registered-1440.png` | `screenshots/14-batch-registered-375.png` |
+| 週の移動（翌週に一括登録した後） | `screenshots/15-week-next-1440.png` | `screenshots/15-week-next-375.png` |
+| 一覧表示（表示中の週） | `screenshots/16-week-list-1440.png` | `screenshots/16-week-list-375.png` |
 
 撮影に使った Playwright のロケールが英語のため、時刻入力が「AM/PM」で表示されている。日本語環境のブラウザでは24時間表記になる。
 

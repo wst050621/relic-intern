@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } 
 import { DAYS, GENRES, MOODS, type Genre, type Mood } from "../../shared/films";
 import {
   BATCH_LIMITS, SCREENS, STATUS_LABEL, TURNOVER_MINUTES, applyBatch, assignScreen, buildBatchRows, parseStartTimes, previewBatch, describeConflict, fromMinutes, initialFilms, initialShowtimes, isoDate,
-  listConflicts, screenName, toMinutes,
+  batchRange, listConflicts, screenName, toMinutes, weekDays, weekOffsetOf,
   type AdminFilm, type BatchRow, type FilmStatus, type Showtime,
 } from "./mockData";
 
@@ -389,11 +389,23 @@ function ScheduleView(props: {
   notify: (msg: string) => void;
   setConfirm: (c: Confirm) => void;
 }) {
-  const [date, setDate] = useState(todayIso);
+  const [date, setDateState] = useState(todayIso);
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [mode, setMode] = useState<"week" | "list">("week");
+  // 日付を選ぶと、その日を含む週へ移動する（上映回のデータは AdminApp が保持するため、週を移動しても消えない）
+  const setDate = (d: string) => { setDateState(d); setWeekOffset(weekOffsetOf(d)); };
+  const moveWeek = (offset: number) => {
+    const w = weekDays(offset);
+    setWeekOffset(offset);
+    setDateState(offset === 0 ? todayIso : w[0]);
+    setAdding(false);
+    setEditingId(null);
+  };
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [batchOpen, setBatchOpen] = useState(false);
-  const days = Array.from({ length: DAYS }, (_, i) => isoDate(i));
+  const days = weekDays(weekOffset);
+  const range = batchRange(days);
   const filmById = (id: string) => props.films.find((f) => f.id === id);
   const selectable = props.films.filter((f) => f.status !== "archived");
   const matchesFilter = (s: Showtime) => props.filmFilter === "all" || s.filmId === props.filmFilter;
@@ -479,7 +491,7 @@ function ScheduleView(props: {
           <p className="page-sub">日付を選んで、上映回の追加・編集・削除やシアターの割り当てができます。</p>
         </div>
         <div className="head-actions">
-          <button type="button" className="btn-secondary" onClick={() => setBatchOpen(true)}>＋ 一括登録</button>
+          <button type="button" className="btn-secondary" onClick={() => setBatchOpen(true)} disabled={!range} title={range ? undefined : "過去の週には登録できません"}>＋ 一括登録</button>
           <button type="button" className="btn-primary" onClick={() => { setAdding(true); setEditingId(null); }} disabled={adding}>＋ 上映回を追加</button>
         </div>
       </div>
@@ -492,7 +504,7 @@ function ScheduleView(props: {
           </div>
           {unassignedAll.length > 0 && (
             <div className="alert-dates" aria-label="未割り当てがある日">
-              {days.filter((d) => unassignedAll.some((s) => s.date === d)).map((d) => (
+              {[...new Set(unassignedAll.map((s) => s.date))].sort().map((d) => (
                 <button key={d} type="button" className="alert-date" aria-pressed={d === date} onClick={() => setDate(d)}>
                   {dateLabel(d)} <b>{unassignedAll.filter((s) => s.date === d).length}件</b>
                 </button>
@@ -502,13 +514,29 @@ function ScheduleView(props: {
         </div>
       )}
 
+      <div className="week-nav">
+        <div className="week-buttons" role="group" aria-label="週の移動">
+          <button type="button" className="btn-secondary" onClick={() => moveWeek(weekOffset - 1)} aria-label="前の週">‹ 前週</button>
+          <button type="button" className="btn-secondary" onClick={() => moveWeek(0)} disabled={weekOffset === 0}>今週に戻る</button>
+          <button type="button" className="btn-secondary" onClick={() => moveWeek(weekOffset + 1)} aria-label="次の週">翌週 ›</button>
+        </div>
+        <p className="week-range" aria-live="polite">{dateLabel(days[0])} 〜 {dateLabel(days[DAYS - 1])}</p>
+        <div className="segmented" role="group" aria-label="表示の切り替え">
+          <button type="button" aria-pressed={mode === "week"} onClick={() => setMode("week")}>週間表示</button>
+          <button type="button" aria-pressed={mode === "list"} onClick={() => setMode("list")}>一覧表示</button>
+        </div>
+      </div>
+
+      {mode === "list" ? (
+        <WeekList days={days} showtimes={props.showtimes} films={props.films} filmFilter={props.filmFilter} onOpenDay={(d) => { setMode("week"); setDate(d); }} />
+      ) : (<>
       <div className="date-strip admin-dates" role="group" aria-label="日付を選択">
         {days.map((d, i) => {
           const list = props.showtimes.filter((s) => s.date === d && matchesFilter(s));
           const un = list.filter((s) => s.screenId === null).length;
           return (
             <button key={d} type="button" className="date" aria-pressed={d === date} onClick={() => setDate(d)}>
-              <span>{i === 0 ? "今日" : dateLabel(d, { weekday: "short" })}</span>
+              <span>{d === todayIso ? "今日" : dateLabel(d, { weekday: "short" })}</span>
               <b>{dateLabel(d, { month: "numeric", day: "numeric" })}</b>
               <small className="date-count">{list.length}回</small>
               {un > 0 && <small className="date-unassigned">未割当 {un}</small>}
@@ -557,6 +585,7 @@ function ScheduleView(props: {
           );
         })}
       </div>
+      </>)}
       <p className="hint">終了時刻は上映時間から自動計算します。同じシアターでは、終了後{TURNOVER_MINUTES}分の入れ替え時間を空けて登録してください。重なりのある上映回や未割り当ての上映回が自動で削除されることはありません。</p>
       {batchOpen && (
         <BatchDialog
@@ -564,6 +593,8 @@ function ScheduleView(props: {
           allFilms={props.films}
           showtimes={props.showtimes}
           initialFilmId={props.filmFilter !== "all" ? props.filmFilter : ""}
+          minDate={range?.min ?? todayIso}
+          maxDate={range?.max ?? todayIso}
           onCancel={() => setBatchOpen(false)}
           onApply={(rows) => {
             const result = applyBatch(rows, props.showtimes, props.films, () => newId("show"));
@@ -580,17 +611,45 @@ function ScheduleView(props: {
   );
 }
 
+function WeekList(props: { days: string[]; showtimes: Showtime[]; films: AdminFilm[]; filmFilter: string; onOpenDay: (d: string) => void }) {
+  const rows = props.showtimes
+    .filter((s) => props.days.includes(s.date) && (props.filmFilter === "all" || s.filmId === props.filmFilter))
+    .sort((a, b) => a.date.localeCompare(b.date) || toMinutes(a.start) - toMinutes(b.start));
+  if (rows.length === 0) return <div className="empty"><b>この週の上映回はありません</b><span>「＋ 一括登録」または「＋ 上映回を追加」で登録できます。</span></div>;
+  return (
+    <table className="batch-table week-list">
+      <caption className="sr-only">表示中の週の上映回一覧</caption>
+      <thead><tr><th scope="col">上映日</th><th scope="col">時刻</th><th scope="col">作品</th><th scope="col">シアター</th><th scope="col">状態</th></tr></thead>
+      <tbody>
+        {rows.map((s) => {
+          const f = props.films.find((x) => x.id === s.filmId);
+          return (
+            <tr key={s.id}>
+              <td><button type="button" className="link-btn small" onClick={() => props.onOpenDay(s.date)}>{dateLabel(s.date)}</button></td>
+              <td>{s.start}〜{f ? fromMinutes(toMinutes(s.start) + f.minutes) : ""}</td>
+              <td>{f?.name ?? "（削除された作品）"}</td>
+              <td>{screenName(s.screenId)}</td>
+              <td>{s.status === "draft" ? "下書き" : "確定"}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
 function BatchDialog(props: {
   films: AdminFilm[];
   allFilms: AdminFilm[];
   showtimes: Showtime[];
   initialFilmId: string;
+  minDate: string;
+  maxDate: string;
   onCancel: () => void;
   onApply: (rows: BatchRow[]) => string | null;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
-  const minDate = isoDate(0);
-  const maxDate = isoDate(DAYS - 1);
+  const { minDate, maxDate } = props;
   const [filmId, setFilmId] = useState(props.initialFilmId);
   const [screenId, setScreenId] = useState(SCREENS[0].id);
   const [dateFrom, setDateFrom] = useState(minDate);
@@ -677,7 +736,7 @@ function BatchDialog(props: {
           </label>
         </div>
         <p className="end-time" aria-live="polite">{endHint}</p>
-        <p className="hint">登録した上映回は「下書き」になり、利用者サイトの公開候補にはなりません。モックでは表示中の7日間（{minDate}〜{maxDate}）を指定できます。</p>
+        <p className="hint">登録した上映回は「下書き」になり、利用者サイトの公開候補にはなりません。期間は表示中の週（{minDate}〜{maxDate}）から選べます。ほかの週は、週を移動してから登録してください。</p>
         {error && <p className="field-error" role="alert">{error}</p>}
 
         {preview && (
@@ -749,7 +808,7 @@ function ShowForm(props: {
   const film = props.films.find((f) => f.id === d.filmId);
   const end = film && /^\d{2}:\d{2}$/.test(d.start) ? fromMinutes(toMinutes(d.start) + film.minutes) : null;
   const set = <K extends keyof ShowDraft>(k: K, v: ShowDraft[K]) => { setD((x) => ({ ...x, [k]: v })); setError(null); };
-  const days = Array.from({ length: DAYS }, (_, i) => isoDate(i));
+  const days = weekDays(weekOffsetOf(props.initial.date));
 
   return (
     <form className={`show-form ${props.compact ? "compact" : ""}`} onSubmit={(e) => { e.preventDefault(); setError(props.onSave(d)); }} aria-label={props.title}>
