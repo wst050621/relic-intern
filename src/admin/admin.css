@@ -1,0 +1,182 @@
+/* 管理画面モック。トークン（--bg, --accent 等）は利用者サイトの styles.css を共有する */
+.admin{min-height:100vh;display:flex;flex-direction:column}
+.admin-top{height:64px;border-bottom:1px solid var(--line);background:#fafaf7f2;position:sticky;top:0;z-index:20;backdrop-filter:blur(12px)}
+.admin-top-inner{height:100%;width:min(1240px,calc(100% - 40px));margin:auto;display:flex;align-items:center;gap:28px}
+.admin-top .brand{flex:none}
+.admin-nav{display:flex;gap:4px;flex:1}
+.admin-nav button{border:0;background:none;padding:8px 14px;border-radius:8px;color:var(--muted);font-weight:700;font-size:13px}
+.admin-nav button:hover{background:var(--surface2);color:var(--text)}
+.admin-nav button[aria-current="page"]{background:var(--text);color:#fff}
+.demo-banner{background:var(--accent-soft);color:var(--accent-strong);border-bottom:1px solid var(--line);font-size:12px;padding:8px 20px;text-align:center}
+.admin-main{width:min(1240px,calc(100% - 40px));margin:0 auto;padding:32px 0 72px;flex:1}
+
+.page-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:20px}
+.page-head h1{font-size:28px;margin:4px 0 0}
+.page-sub{color:var(--muted);font-size:12px;margin:2px 0 0}
+.toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 16px}
+.search input{width:min(320px,100%);padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--surface)}
+.segmented{display:flex;background:var(--surface2);border-radius:9px;padding:3px;gap:2px}
+.segmented button{border:0;background:none;border-radius:7px;padding:6px 12px;font-size:12px;color:var(--muted);white-space:nowrap}
+.segmented button[aria-pressed="true"]{background:var(--surface);color:var(--text);font-weight:700;box-shadow:0 1px 3px #0001}
+
+.btn-primary,.btn-secondary,.btn-danger,.btn-ghost{border-radius:9px;font-weight:800;font-size:13px;white-space:nowrap}
+.btn-primary{border:0;background:var(--text);color:#fff;padding:11px 18px}.btn-primary:hover:not(:disabled){background:#333}
+.btn-secondary{border:1px solid var(--line);background:var(--surface);padding:10px 16px}.btn-secondary:hover{border-color:var(--text)}
+.btn-danger{border:0;background:var(--err);color:#fff;padding:11px 18px}.btn-danger:hover{background:#8b2f24}
+.btn-ghost{border:1px solid transparent;background:none;padding:6px 10px;color:var(--accent-strong);font-size:12px}.btn-ghost:hover{background:var(--surface2)}
+.btn-ghost.danger{color:var(--err)}
+.link-btn{border:0;background:none;padding:0;font:inherit;font-weight:800;text-align:left;color:var(--text);font-family:Georgia,"Yu Mincho",serif;font-size:15px}.link-btn:hover{color:var(--accent-strong);text-decoration:underline}
+.icon-btn{border:0;background:var(--surface2);width:34px;height:34px;border-radius:50%;font-size:20px;line-height:1}
+.hint{color:var(--muted);font-size:11.5px;margin:12px 0 0}
+.warn-text{background:#f8e6e3;color:var(--err);border-radius:8px;padding:9px 12px;font-size:12.5px}
+
+/* F-01 作品一覧 */
+.film-table{width:100%;border-collapse:separate;border-spacing:0;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;font-size:13px}
+.film-table th,.film-table td{padding:13px 14px;text-align:left;border-bottom:1px solid var(--line);vertical-align:middle}
+.film-table thead th{background:var(--surface2);font-size:11.5px;color:var(--muted);font-weight:700;letter-spacing:.04em}
+.film-table tbody tr:last-child>*{border-bottom:0}
+.film-table tbody tr:hover{background:#fcfaf6}
+.film-table .num{text-align:right;font-variant-numeric:tabular-nums}
+.row-actions{text-align:right;white-space:nowrap}
+.status{display:inline-block;vertical-align:middle;line-height:1.6;border-radius:20px;padding:2px 10px;font-size:11.5px;font-weight:800}
+.status-published{background:#e8f2ea;color:var(--ok)}.status-draft{background:var(--accent-soft);color:var(--warn)}.status-archived{background:var(--surface2);color:var(--muted)}
+.count-btn{border:1px solid var(--line);background:var(--surface);border-radius:20px;padding:2px 10px;font-weight:800;font-size:12px;font-variant-numeric:tabular-nums}.count-btn:hover{border-color:var(--accent)}
+
+/* F-02 作品登録・編集（ドロワー） */
+.drawer{margin:0 0 0 auto;height:100vh;max-height:100vh;max-width:100%;width:min(560px,100%);border:0;border-left:1px solid var(--line);padding:0;background:var(--surface);color:var(--text)}
+.drawer::backdrop,.confirm::backdrop{background:#1a1a1a55}
+.drawer form{display:flex;flex-direction:column;height:100%}
+.drawer-head{display:flex;justify-content:space-between;align-items:flex-start;padding:22px 24px 14px;border-bottom:1px solid var(--line)}
+.drawer-head h2{margin:2px 0 0;font-size:22px}
+.drawer-body{padding:8px 24px 24px;overflow:auto;flex:1}
+.drawer-foot{display:flex;gap:10px;align-items:center;padding:14px 24px;border-top:1px solid var(--line);background:var(--bg)}
+.spacer{flex:1}
+.field{margin:18px 0 0;border:0;padding:0;min-width:0}
+.field>label,.field>legend{display:flex;align-items:center;gap:8px;font-weight:700;font-size:13px;margin-bottom:7px;padding:0}
+.field small{color:var(--muted);font-weight:400;font-size:11px}
+.field-hint{margin-left:auto}
+.req{background:var(--text);color:#fff;border-radius:4px;font-size:10px;padding:1px 5px;font-weight:700}
+.field input:not([type=radio]),.field textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--bg);line-height:1.6}
+.field [aria-invalid="true"]{border-color:var(--err)!important;background:#fdf6f5}
+.field-error{color:var(--err);font-size:12px;margin:6px 0 0}
+.field-row{display:grid;grid-template-columns:1fr 160px;gap:14px}
+.with-unit{display:flex;align-items:center;gap:8px}.with-unit input{text-align:right}
+.status-options{display:grid;gap:8px}
+.status-option{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer}
+.status-option:has(input:checked){border-color:var(--text);background:var(--bg)}
+.status-option input{margin-top:4px;accent-color:var(--text)}
+.status-option span{display:flex;flex-direction:column}.status-option small{color:var(--muted);font-size:11.5px}
+
+/* F-03 上映スケジュール */
+.admin-dates .date{padding:8px 3px 6px}
+.date-count{display:block;font-size:10.5px;color:var(--muted)}
+.date[aria-pressed="true"] .date-count{color:var(--accent-strong)}
+.day-title{font-size:18px;margin:0}
+.inline-select{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.inline-select select{width:auto;min-width:200px}
+.screens{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.screen-col{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px}
+.screen-col h3{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 10px;font-size:14px}
+.screen-col h3 small{color:var(--muted);font-weight:400;font-size:11px}
+.screen-empty{color:var(--muted);font-size:12px;margin:8px 0}
+.show-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.show{display:grid;grid-template-columns:62px minmax(0,1fr);gap:4px 10px;border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:10px;padding:10px 10px 6px;background:var(--bg)}
+.show.is-muted{border-left-color:#c9c4ba;opacity:.8}
+.show-time b{display:block;font-size:16px;font-variant-numeric:tabular-nums;line-height:1.2}.show-time span{font-size:11px;color:var(--muted)}
+.show-film{min-width:0}.show-film b{display:block;font-family:Georgia,"Yu Mincho",serif;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.show-film span{font-size:11px;color:var(--muted)}
+.show-actions{grid-column:1/-1;display:flex;justify-content:flex-end;gap:2px;border-top:1px dashed var(--line);padding-top:4px}
+.show-form{background:var(--surface);border:1px solid var(--accent);border-radius:14px;padding:16px;margin:0 0 16px;box-shadow:0 10px 30px #a8732a14}
+.show-form.compact{margin:0;padding:12px}
+.show-form h3{margin:0 0 10px;font-size:15px}
+.show-form-grid{display:grid;grid-template-columns:2fr 1.2fr 1fr 1fr;gap:10px}
+.show-form.compact .show-form-grid{grid-template-columns:1fr 1fr}
+.show-form.compact .show-form-grid label:first-child{grid-column:1/-1}
+.show-form label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:700;min-width:0}
+.show-form input{padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg)}
+.end-time{font-size:12px;color:var(--muted);margin:10px 0 0}
+.show-form-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
+
+/* 確認ダイアログ・トースト */
+.confirm{width:min(440px,calc(100% - 32px));border:1px solid var(--line);border-radius:16px;padding:0;background:var(--surface);color:var(--text);box-shadow:0 20px 80px #0003}
+.confirm-body{padding:24px}.confirm-body h2{margin:0 0 8px;font-size:19px}.confirm-body p{font-size:13.5px}
+.confirm-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:50;pointer-events:none}
+.toast span{display:block;background:var(--text);color:#fff;border-radius:10px;padding:11px 16px;font-size:12.5px;box-shadow:0 10px 30px #0003}
+
+@media(max-width:960px){.screens{grid-template-columns:1fr 1fr}.show-form-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:720px){
+  .admin-top{height:auto}
+  .admin-top-inner{width:calc(100% - 24px);flex-wrap:wrap;gap:6px 12px;padding:10px 0}
+  .admin-top .brand{font-size:14px}.admin-top .theater-pill{margin-left:auto;font-size:10px;padding:5px 9px}
+  .admin-nav{order:3;flex-basis:100%}.admin-nav button{flex:1;padding:9px 6px}
+  .admin-main{width:calc(100% - 24px);padding:22px 0 64px}
+  .page-head{flex-direction:column;align-items:stretch}.page-head h1{font-size:23px}.page-head .btn-primary{width:100%;padding:13px}
+  .toolbar{flex-direction:column;align-items:stretch}.search input{width:100%}.segmented{overflow-x:auto}.segmented button{flex:1}
+  .inline-select{justify-content:space-between}.inline-select select{min-width:0;flex:1}
+  /* 作品一覧はカード表示 */
+  .film-table,.film-table tbody,.film-table tr,.film-table td,.film-table th{display:block;width:100%}
+  .film-table{border:0;background:none}
+  .film-table thead{display:none}
+  .film-table tbody{display:grid;gap:10px}
+  .film-table tr{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:grid;grid-template-columns:1fr 1fr;gap:6px 12px}
+  .film-table tbody tr>*{border:0;padding:0;text-align:left}
+  .film-table .film-name{grid-column:1/-1}
+  .film-table td[data-label]::before{content:attr(data-label);display:block;font-size:10.5px;color:var(--muted)}
+  .film-table .num{text-align:left}
+  .row-actions{grid-column:1/-1;display:flex;justify-content:flex-end;border-top:1px dashed var(--line)!important;padding-top:6px!important}
+  .drawer{width:100%;border-left:0}.drawer-head,.drawer-body,.drawer-foot{padding-left:16px;padding-right:16px}
+  .drawer-foot{flex-wrap:wrap}.drawer-foot .btn-primary,.drawer-foot .btn-secondary{flex:1}.drawer-foot .danger{order:3;width:100%}
+  .drawer-foot .spacer{display:none}
+  .field-row{grid-template-columns:1fr}
+  .screens{grid-template-columns:1fr}
+  .show-form-grid{grid-template-columns:1fr 1fr}.show-form-grid label:first-child{grid-column:1/-1}
+}
+
+/* 未割り当て・重複の表示（上映回は削除せず、スタッフが判断できるようにする） */
+.nav-badge{display:inline-block;margin-left:6px;min-width:20px;padding:0 6px;border-radius:10px;background:var(--err);color:#fff;font-size:11px;line-height:18px;text-align:center}
+.alert{display:flex;justify-content:space-between;align-items:center;gap:12px 20px;flex-wrap:wrap;border:1px solid #e5c9a2;background:#fdf6ea;color:#5c3d12;border-radius:12px;padding:12px 16px;margin:0 0 16px;font-size:12.5px}
+.alert p{margin:2px 0}
+.alert-dates{display:flex;flex-wrap:wrap;gap:6px}
+.alert-date{border:1px solid #e5c9a2;background:var(--surface);border-radius:20px;padding:4px 10px;font-size:12px}
+.alert-date[aria-pressed="true"]{background:var(--text);color:#fff;border-color:var(--text)}
+.date-unassigned{display:block;margin:3px auto 0;width:fit-content;border-radius:8px;padding:0 6px;background:#f8e6e3;color:var(--err);font-size:10px;font-weight:700}
+.unassigned{border:1px dashed var(--err);background:#fdf6f5;border-radius:14px;padding:14px;margin:0 0 14px}
+.unassigned h3{margin:0 0 10px;font-size:14px;color:var(--err)}
+.unassigned h3 small{color:var(--muted);font-weight:400;font-size:11px;margin-left:6px}
+.unassigned-list{grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
+.unassigned-list .show{border-left-color:var(--err);background:var(--surface)}
+.show.is-conflict{border-left-color:var(--err);background:#fdf6f5}
+.show-warn{grid-column:1/-1;margin:2px 0 0;font-size:11.5px;color:var(--err);line-height:1.5}
+.assign{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:4px}
+.assign label{flex:1;min-width:140px}
+.assign select{padding:7px 10px;font-size:12px}
+.assign .btn-secondary{padding:7px 12px;font-size:12px}
+.assign .field-error{flex-basis:100%;margin:2px 0 0}
+@media(max-width:720px){.unassigned-list{grid-template-columns:1fr}.alert{flex-direction:column;align-items:stretch}}
+
+/* 一括登録 */
+.head-actions{display:flex;gap:8px;flex-wrap:wrap}
+.drawer.batch{width:min(760px,100%)}
+.drawer.batch{display:none}.drawer.batch[open]{display:flex;flex-direction:column}
+.batch-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:12px;margin-top:14px}
+.field-inline{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:700;min-width:0}
+.field-inline.wide{grid-column:1/-1}
+.field-inline input{padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg)}
+.batch-preview{margin-top:16px}
+.batch-summary{border-radius:10px;padding:10px 12px;background:#e8f2ea;color:var(--ok);font-size:13px;margin:0 0 10px}
+.batch-summary.has-conflict{background:#f8e6e3;color:var(--err)}
+.batch-table{width:100%;border-collapse:collapse;font-size:12.5px}
+.batch-table th,.batch-table td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}
+.batch-table th{background:var(--surface2);color:var(--muted);font-size:11.5px}
+.batch-table tr.is-conflict td{background:#fdf6f5}
+.batch-table td:nth-child(-n+4){white-space:nowrap}
+.conflict-text{color:var(--err)}
+.draft-badge{grid-column:1/-1;justify-self:start;border:1px dashed var(--muted);color:var(--muted);border-radius:6px;padding:0 6px;font-size:10.5px;font-weight:700}
+@media(max-width:720px){
+  .head-actions{flex-direction:column}.head-actions button{width:100%;padding:13px}
+  .batch-grid{grid-template-columns:1fr 1fr}.batch-grid .field-inline:first-child{grid-column:1/-1}
+  .batch-table thead{display:none}
+  .batch-table,.batch-table tbody,.batch-table tr,.batch-table td{display:block;width:100%}
+  .batch-table tr{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:8px}
+  .batch-table td{border:0;padding:1px 0}
+}
