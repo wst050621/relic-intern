@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { DAYS, GENRES, MOODS, type Genre, type Mood } from "../../shared/films";
 import {
-  SCREENS, STATUS_LABEL, TURNOVER_MINUTES, findConflict, fromMinutes, initialFilms, initialShowtimes, isoDate, toMinutes,
+  SCREENS, STATUS_LABEL, TURNOVER_MINUTES, assignScreen, describeConflict, fromMinutes, initialFilms, initialShowtimes, isoDate,
+  listConflicts, screenName, toMinutes,
   type AdminFilm, type FilmStatus, type Showtime,
 } from "./mockData";
 
@@ -33,12 +34,17 @@ export default function AdminApp() {
     return () => clearTimeout(t);
   }, [toast]);
 
+  const unassignedCount = showtimes.filter((s) => s.screenId === null).length;
   const notify = (msg: string) => setToast(`${msg}（デモ：保存されません）`);
 
   function saveFilm(film: AdminFilm, isNew: boolean) {
-    setFilms((list) => (isNew ? [...list, film] : list.map((f) => (f.id === film.id ? film : f))));
+    const next = isNew ? [...films, film] : films.map((f) => (f.id === film.id ? film : f));
+    setFilms(next);
     setEditing(null);
-    notify(isNew ? `「${film.name}」を登録しました` : `「${film.name}」を更新しました`);
+    // 上映時間の変更で既存の上映回が重なっても削除はせず、件数を知らせる
+    const conflicts = listConflicts(showtimes, next).size;
+    const extra = conflicts > listConflicts(showtimes, films).size ? `。時間が重なる上映回が ${conflicts} 件あります（上映スケジュールで確認してください）` : "";
+    notify((isNew ? `「${film.name}」を登録しました` : `「${film.name}」を更新しました`) + extra);
   }
 
   function requestDeleteFilm(film: AdminFilm) {
@@ -71,7 +77,10 @@ export default function AdminApp() {
           </a>
           <nav className="admin-nav" aria-label="管理メニュー">
             <button type="button" aria-current={view === "films" ? "page" : undefined} onClick={() => setView("films")}>作品管理</button>
-            <button type="button" aria-current={view === "schedule" ? "page" : undefined} onClick={() => { setScheduleFilm("all"); setView("schedule"); }}>上映スケジュール</button>
+            <button type="button" aria-current={view === "schedule" ? "page" : undefined} onClick={() => { setScheduleFilm("all"); setView("schedule"); }}>
+              上映スケジュール
+              {unassignedCount > 0 && <span className="nav-badge" aria-label={`未割り当て ${unassignedCount}件`}>{unassignedCount}</span>}
+            </button>
           </nav>
           <span className="theater-pill" title="ログイン中の映画館（デモ）">◉ シネマ・デモ館</span>
         </div>
@@ -366,7 +375,7 @@ function Field(props: { id: string; label: string; required?: boolean; error?: s
 
 interface ShowDraft {
   filmId: string;
-  screenId: string;
+  screenId: string | null;
   date: string;
   start: string;
 }
@@ -386,19 +395,20 @@ function ScheduleView(props: {
   const days = Array.from({ length: DAYS }, (_, i) => isoDate(i));
   const filmById = (id: string) => props.films.find((f) => f.id === id);
   const selectable = props.films.filter((f) => f.status !== "archived");
+  const matchesFilter = (s: Showtime) => props.filmFilter === "all" || s.filmId === props.filmFilter;
 
+  const conflicts = useMemo(() => listConflicts(props.showtimes, props.films), [props.showtimes, props.films]);
+  const unassignedAll = props.showtimes.filter((s) => s.screenId === null);
   const dayList = props.showtimes
-    .filter((s) => s.date === date && (props.filmFilter === "all" || s.filmId === props.filmFilter))
+    .filter((s) => s.date === date && matchesFilter(s))
     .sort((a, b) => toMinutes(a.start) - toMinutes(b.start));
+  const dayUnassigned = dayList.filter((s) => s.screenId === null);
 
   function save(d: ShowDraft, id?: string): string | null {
     if (!d.filmId) return "作品を選択してください。";
     if (!/^\d{2}:\d{2}$/.test(d.start)) return "開始時刻を入力してください。";
-    const clash = findConflict({ ...d, id }, props.showtimes, props.films);
-    if (clash) {
-      const cf = filmById(clash.filmId)!;
-      return `${SCREENS.find((s) => s.id === d.screenId)?.name}の「${cf.name}」（${clash.start}〜${fromMinutes(toMinutes(clash.start) + cf.minutes)}、入れ替え${TURNOVER_MINUTES}分）と重なります。`;
-    }
+    const reason = describeConflict({ ...d, id }, props.showtimes, props.films);
+    if (reason) return reason;
     props.setShowtimes((list) => (id ? list.map((s) => (s.id === id ? { ...s, ...d } : s)) : [...list, { ...d, id: newId("show") }]));
     props.notify(`${dateLabel(d.date)} ${d.start}「${filmById(d.filmId)?.name}」を${id ? "更新" : "追加"}しました`);
     setAdding(false);
@@ -407,11 +417,19 @@ function ScheduleView(props: {
     return null;
   }
 
+  function assign(s: Showtime, screenId: string): string | null {
+    const result = assignScreen(props.showtimes, s.id, screenId, props.films);
+    if (!result.ok) return result.reason;
+    props.setShowtimes(result.showtimes);
+    props.notify(`${s.start}「${filmById(s.filmId)?.name}」を${screenName(screenId)}に割り当てました`);
+    return null;
+  }
+
   function remove(s: Showtime) {
     const f = filmById(s.filmId);
     props.setConfirm({
       title: "上映予定を削除しますか？",
-      body: <p>{dateLabel(s.date)} {s.start}〜 <b>{f?.name}</b>（{SCREENS.find((x) => x.id === s.screenId)?.name}）を削除します。</p>,
+      body: <p>{dateLabel(s.date)} {s.start}〜 <b>{f?.name}</b>（{screenName(s.screenId)}）を削除します。</p>,
       action: "削除する",
       onConfirm: () => {
         props.setShowtimes((list) => list.filter((x) => x.id !== s.id));
@@ -420,25 +438,75 @@ function ScheduleView(props: {
     });
   }
 
+  const renderShow = (s: Showtime) => {
+    const f = filmById(s.filmId);
+    if (editingId === s.id) {
+      return (
+        <li key={s.id}>
+          <ShowForm title="上映回を編集" films={selectable} initial={s} compact onCancel={() => setEditingId(null)} onSave={(d) => save(d, s.id)} />
+        </li>
+      );
+    }
+    const conflict = conflicts.get(s.id);
+    return (
+      <li key={s.id} className={`show ${f?.status !== "published" ? "is-muted" : ""} ${conflict ? "is-conflict" : ""}`}>
+        <div className="show-time">
+          <b>{s.start}</b>
+          <span>〜{f ? fromMinutes(toMinutes(s.start) + f.minutes) : "--:--"}</span>
+        </div>
+        <div className="show-film">
+          <b>{f?.name ?? "（削除された作品）"}</b>
+          <span>{f?.minutes}分{f && f.status !== "published" ? `｜${STATUS_LABEL[f.status]}` : ""}</span>
+        </div>
+        {conflict && <p className="show-warn" role="note">⚠ 重複：{conflict}</p>}
+        {s.screenId === null && <AssignControl show={s} onAssign={(screenId) => assign(s, screenId)} />}
+        <div className="show-actions">
+          <button type="button" className="btn-ghost" onClick={() => { setEditingId(s.id); setAdding(false); }} aria-label={`${s.start} ${f?.name} を編集`}>編集</button>
+          <button type="button" className="btn-ghost danger" onClick={() => remove(s)} aria-label={`${s.start} ${f?.name} を削除`}>削除</button>
+        </div>
+      </li>
+    );
+  };
+
   return (
     <section aria-labelledby="schedule-title">
       <div className="page-head">
         <div>
           <div className="eyebrow">SCHEDULE</div>
           <h1 id="schedule-title">上映スケジュール</h1>
-          <p className="page-sub">日付を選んで、上映回の追加・編集・削除ができます。</p>
+          <p className="page-sub">日付を選んで、上映回の追加・編集・削除やシアターの割り当てができます。</p>
         </div>
         <button type="button" className="btn-primary" onClick={() => { setAdding(true); setEditingId(null); }} disabled={adding}>＋ 上映回を追加</button>
       </div>
 
+      {(unassignedAll.length > 0 || conflicts.size > 0) && (
+        <div className="alert" role="status">
+          <div>
+            {unassignedAll.length > 0 && <p><b>シアター未割り当ての上映回が {unassignedAll.length} 件あります。</b>上映回は削除されていません。シアターを選んで割り当ててください。</p>}
+            {conflicts.size > 0 && <p><b>時間が重なっている上映回が {conflicts.size} 件あります。</b>各上映回に原因を表示しています。</p>}
+          </div>
+          {unassignedAll.length > 0 && (
+            <div className="alert-dates" aria-label="未割り当てがある日">
+              {days.filter((d) => unassignedAll.some((s) => s.date === d)).map((d) => (
+                <button key={d} type="button" className="alert-date" aria-pressed={d === date} onClick={() => setDate(d)}>
+                  {dateLabel(d)} <b>{unassignedAll.filter((s) => s.date === d).length}件</b>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="date-strip admin-dates" role="group" aria-label="日付を選択">
         {days.map((d, i) => {
-          const n = props.showtimes.filter((s) => s.date === d && (props.filmFilter === "all" || s.filmId === props.filmFilter)).length;
+          const list = props.showtimes.filter((s) => s.date === d && matchesFilter(s));
+          const un = list.filter((s) => s.screenId === null).length;
           return (
             <button key={d} type="button" className="date" aria-pressed={d === date} onClick={() => setDate(d)}>
               <span>{i === 0 ? "今日" : dateLabel(d, { weekday: "short" })}</span>
               <b>{dateLabel(d, { month: "numeric", day: "numeric" })}</b>
-              <small className="date-count">{n}回</small>
+              <small className="date-count">{list.length}回</small>
+              {un > 0 && <small className="date-unassigned">未割当 {un}</small>}
             </button>
           );
         })}
@@ -465,6 +533,13 @@ function ScheduleView(props: {
         />
       )}
 
+      {dayUnassigned.length > 0 && (
+        <div className="unassigned">
+          <h3>未割り当て <small>{dayUnassigned.length}回｜シアターを選んで「割り当て」を押してください</small></h3>
+          <ol className="show-list unassigned-list">{dayUnassigned.map(renderShow)}</ol>
+        </div>
+      )}
+
       <div className="screens">
         {SCREENS.map((sc) => {
           const rows = dayList.filter((s) => s.screenId === sc.id);
@@ -472,40 +547,31 @@ function ScheduleView(props: {
             <div key={sc.id} className="screen-col">
               <h3>{sc.name} <small>{rows.length}回</small></h3>
               {rows.length === 0 && <p className="screen-empty">上映予定はありません</p>}
-              <ol className="show-list">
-                {rows.map((s) => {
-                  const f = filmById(s.filmId);
-                  if (editingId === s.id) {
-                    return (
-                      <li key={s.id}>
-                        <ShowForm title="上映回を編集" films={selectable} initial={s} compact onCancel={() => setEditingId(null)} onSave={(d) => save(d, s.id)} />
-                      </li>
-                    );
-                  }
-                  return (
-                    <li key={s.id} className={`show ${f?.status !== "published" ? "is-muted" : ""}`}>
-                      <div className="show-time">
-                        <b>{s.start}</b>
-                        <span>〜{f ? fromMinutes(toMinutes(s.start) + f.minutes) : "--:--"}</span>
-                      </div>
-                      <div className="show-film">
-                        <b>{f?.name ?? "（削除された作品）"}</b>
-                        <span>{f?.minutes}分{f && f.status !== "published" ? `｜${STATUS_LABEL[f.status]}` : ""}</span>
-                      </div>
-                      <div className="show-actions">
-                        <button type="button" className="btn-ghost" onClick={() => { setEditingId(s.id); setAdding(false); }} aria-label={`${s.start} ${f?.name} を編集`}>編集</button>
-                        <button type="button" className="btn-ghost danger" onClick={() => remove(s)} aria-label={`${s.start} ${f?.name} を削除`}>削除</button>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ol>
+              <ol className="show-list">{rows.map(renderShow)}</ol>
             </div>
           );
         })}
       </div>
-      <p className="hint">終了時刻は上映時間から自動計算します。同じシアターでは、終了後{TURNOVER_MINUTES}分の入れ替え時間を空けて登録してください。</p>
+      <p className="hint">終了時刻は上映時間から自動計算します。同じシアターでは、終了後{TURNOVER_MINUTES}分の入れ替え時間を空けて登録してください。重なりのある上映回や未割り当ての上映回が自動で削除されることはありません。</p>
     </section>
+  );
+}
+
+function AssignControl(props: { show: Showtime; onAssign: (screenId: string) => string | null }) {
+  const [screenId, setScreenId] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <div className="assign">
+      <label>
+        <span className="sr-only">{props.show.start}の割り当て先シアター</span>
+        <select value={screenId} onChange={(e) => { setScreenId(e.target.value); setError(null); }}>
+          <option value="">シアターを選択</option>
+          {SCREENS.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+        </select>
+      </label>
+      <button type="button" className="btn-secondary" disabled={!screenId} onClick={() => setError(props.onAssign(screenId))}>割り当て</button>
+      {error && <p className="field-error" role="alert">{error}</p>}
+    </div>
   );
 }
 
@@ -540,8 +606,9 @@ function ShowForm(props: {
           </select>
         </label>
         <label>シアター
-          <select value={d.screenId} onChange={(e) => set("screenId", e.target.value)}>
+          <select value={d.screenId ?? ""} onChange={(e) => set("screenId", e.target.value || null)}>
             {SCREENS.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            <option value="">未割り当て</option>
           </select>
         </label>
         <label>開始時刻
